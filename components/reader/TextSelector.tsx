@@ -33,26 +33,33 @@ export default function TextSelector({ bookId, chapterId }: TextSelectorProps) {
   const [isTranslating, setIsTranslating] = useState(false)
   const [translationError, setTranslationError] = useState(false)
   const audioRef = useRef<HTMLAudioElement | null>(null)
-
+  
   // 移动端状态
   const [isMobile, setIsMobile] = useState(false)
+  
+  // 检测设备类型
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768)
+    }
+    
+    checkMobile()
+    window.addEventListener('resize', checkMobile)
+    
+    return () => {
+      window.removeEventListener('resize', checkMobile)
+    }
+  }, [])
 
   // 处理文本选择事件
   const handleTextSelection = useCallback(() => {
     const selection = window.getSelection()
     if (!selection || selection.isCollapsed) {
-      // 不要在移动端上立即隐藏工具栏，给用户更多时间操作
-      if (!isMobile) {
-        setIsVisible(false)
-      }
       return
     }
 
     const text = selection.toString().trim()
     if (!text) {
-      if (!isMobile) {
-        setIsVisible(false)
-      }
       return
     }
 
@@ -89,43 +96,108 @@ export default function TextSelector({ bookId, chapterId }: TextSelectorProps) {
     setTranslationError(false)
   }, [setToolbarVisible, isMobile])
 
-  // 处理点击事件（关闭工具栏）
+  // 处理点击事件（关闭工具栏和翻译）
   const handleClickOutside = useCallback((e: MouseEvent) => {
     const toolbar = document.getElementById('text-selector-toolbar')
     const translationTooltip = document.getElementById('translation-tooltip')
     
     if (
-      (toolbar && !toolbar.contains(e.target as Node)) && 
-      (translationTooltip && !translationTooltip.contains(e.target as Node))
+      (!toolbar || !toolbar.contains(e.target as Node)) && 
+      (!translationTooltip || !translationTooltip.contains(e.target as Node))
     ) {
-      // 在移动端上，给用户更多时间操作，不要立即关闭
-      if (!isMobile) {
-        setIsVisible(false)
-        setShowTranslation(false)
-      }
+      setIsVisible(false)
+      setShowTranslation(false)
     }
-  }, [isMobile])
+  }, [])
 
   // 添加事件监听
   useEffect(() => {
-    // 在移动端上，使用 touchend 事件来处理文本选择
-    const handleTouchEnd = () => {
-      setTimeout(handleTextSelection, 100); // 延迟一小段时间，等待选区更新
-    };
-
+    // 为移动设备启用文本选择
     if (isMobile) {
-      document.addEventListener('touchend', handleTouchEnd);
-    } else {
-      document.addEventListener('selectionchange', handleTextSelection);
+      // 使文本可选择
+      document.body.style.userSelect = 'text';
+      document.body.style.webkitUserSelect = 'text';
+      // 使用正确的CSS属性
+      (document.body.style as any).msUserSelect = 'text';
+      (document.body.style as any).MozUserSelect = 'text';
+      
+      // 禁用默认的触摸行为
+      document.addEventListener('touchstart', (e) => {
+        // 允许默认行为继续，以便用户可以选择文本
+      }, { passive: true });
     }
-    document.addEventListener('mousedown', handleClickOutside);
-
-    return () => {
-      if (isMobile) {
-        document.removeEventListener('touchend', handleTouchEnd);
-      } else {
-        document.removeEventListener('selectionchange', handleTextSelection);
+    
+    // 使用mouseup事件处理文本选择
+    const handleMouseUp = (e: MouseEvent) => {
+      // 防止工具栏点击时关闭翻译
+      const toolbar = document.getElementById('text-selector-toolbar');
+      if (toolbar && toolbar.contains(e.target as Node)) {
+        return;
       }
+      
+      setTimeout(() => {
+        const selection = window.getSelection();
+        if (selection && !selection.isCollapsed && selection.toString().trim()) {
+          handleTextSelection();
+        }
+      }, 10);
+    };
+    
+    document.addEventListener('mouseup', handleMouseUp);
+    document.addEventListener('mousedown', handleClickOutside);
+    
+    // 为移动设备添加触摸事件
+    if (isMobile) {
+      // 处理触摸结束事件，用于文本选择
+      const handleTouchEnd = (e: TouchEvent) => {
+        // 防止工具栏点击时关闭翻译
+        const toolbar = document.getElementById('text-selector-toolbar');
+        if (toolbar && toolbar.contains(e.target as Node)) {
+          return;
+        }
+        
+        setTimeout(() => {
+          const selection = window.getSelection();
+          if (selection && !selection.isCollapsed && selection.toString().trim()) {
+            handleTextSelection();
+          }
+        }, 100);
+      };
+      
+      // 处理触摸开始事件，用于关闭翻译
+      const handleTouchStart = (e: TouchEvent) => {
+        const toolbar = document.getElementById('text-selector-toolbar');
+        const translationTooltip = document.getElementById('translation-tooltip');
+        
+        if (
+          (!toolbar || !toolbar.contains(e.target as Node)) && 
+          (!translationTooltip || !translationTooltip.contains(e.target as Node))
+        ) {
+          setIsVisible(false);
+          setShowTranslation(false);
+        }
+      };
+      
+      document.addEventListener('touchend', handleTouchEnd);
+      document.addEventListener('touchstart', handleTouchStart);
+      
+      return () => {
+        document.removeEventListener('mouseup', handleMouseUp);
+        document.removeEventListener('mousedown', handleClickOutside);
+        document.removeEventListener('touchend', handleTouchEnd);
+        document.removeEventListener('touchstart', handleTouchStart);
+        
+        // 恢复默认的文本选择行为
+        document.body.style.userSelect = '';
+        document.body.style.webkitUserSelect = '';
+        // 使用正确的CSS属性
+        (document.body.style as any).msUserSelect = '';
+        (document.body.style as any).MozUserSelect = '';
+      };
+    }
+    
+    return () => {
+      document.removeEventListener('mouseup', handleMouseUp);
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [handleTextSelection, handleClickOutside, isMobile]);
@@ -166,7 +238,9 @@ export default function TextSelector({ bookId, chapterId }: TextSelectorProps) {
   }
   
   // 播放原文发音
-  const playOriginalAudio = () => {
+  const playOriginalAudio = (e: React.MouseEvent) => {
+    e.stopPropagation(); // 防止点击事件冒泡
+    
     if (!translationData?.speakUrl) return;
     
     if (!audioRef.current) {
@@ -181,7 +255,9 @@ export default function TextSelector({ bookId, chapterId }: TextSelectorProps) {
   };
   
   // 播放翻译发音
-  const playTranslationAudio = () => {
+  const playTranslationAudio = (e: React.MouseEvent) => {
+    e.stopPropagation(); // 防止点击事件冒泡
+    
     if (!translationData?.tSpeakUrl) return;
     
     if (!audioRef.current) {
@@ -196,7 +272,9 @@ export default function TextSelector({ bookId, chapterId }: TextSelectorProps) {
   };
   
   // 翻译选中文本
-  const handleTranslate = async () => {
+  const handleTranslate = async (e: React.MouseEvent) => {
+    e.stopPropagation(); // 防止点击事件冒泡，避免工具栏点击时关闭翻译
+    
     if (isTranslating) return
     
     setIsTranslating(true)
@@ -334,26 +412,19 @@ export default function TextSelector({ bookId, chapterId }: TextSelectorProps) {
             top: translationPosition.top,
             maxWidth: isMobile ? 'calc(100vw - 40px)' : '400px'
           }}
+          onClick={(e) => e.stopPropagation()} // 防止点击翻译界面时关闭它
         >
           <div className="bg-white dark:bg-[#1a1a1a] rounded-lg shadow-lg border border-gray-200 dark:border-gray-800 p-4 w-full">
-            <div className="flex justify-between items-start mb-2">
+            <div className="mb-2">
               <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100">翻译结果</h3>
-              <button 
-                onClick={() => setShowTranslation(false)}
-                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-              >
-                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
             </div>
             
-            <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mb-2 line-clamp-2">
-              <div className="break-words max-w-[90%]">{selectedText}</div>
+            <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mb-2">
+              <div className="break-words max-w-[calc(100%-30px)]">{selectedText}</div>
               {translationData?.speakUrl && (
                 <button 
                   onClick={playOriginalAudio}
-                  className="text-primary-500 hover:text-primary-600 dark:text-primary-400 dark:hover:text-primary-300 ml-2 flex-shrink-0"
+                  className="text-primary-500 hover:text-primary-600 dark:text-primary-400 dark:hover:text-primary-300 ml-3 flex-shrink-0"
                   aria-label="播放原文发音"
                 >
                   <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -373,7 +444,7 @@ export default function TextSelector({ bookId, chapterId }: TextSelectorProps) {
                 <div className="text-sm text-red-500 py-2">翻译失败，请重试</div>
               ) : translationData ? (
                 <div className="flex items-center justify-between">
-                  <div className="text-sm dark:text-gray-300 break-words max-w-[90%]">
+                  <div className="text-sm dark:text-gray-300 break-words max-w-[calc(100%-30px)]">
                     {translationData.translation && translationData.translation.length > 0 && (
                       <span>{translationData.translation[0]}</span>
                     )}
@@ -381,7 +452,7 @@ export default function TextSelector({ bookId, chapterId }: TextSelectorProps) {
                   {translationData.tSpeakUrl && (
                     <button 
                       onClick={playTranslationAudio}
-                      className="text-primary-500 hover:text-primary-600 dark:text-primary-400 dark:hover:text-primary-300 ml-2 flex-shrink-0"
+                      className="text-primary-500 hover:text-primary-600 dark:text-primary-400 dark:hover:text-primary-300 ml-3 flex-shrink-0"
                       aria-label="播放翻译发音"
                     >
                       <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
