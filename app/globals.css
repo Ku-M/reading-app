@@ -1,0 +1,158 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --foreground-rgb: 0, 0, 0;
+  --background-rgb: 255, 255, 255;
+}
+
+.dark {
+  --foreground-rgb: 255, 255, 255;
+  --background-rgb: 26, 26, 26;
+}
+
+body {
+  color: rgb(var(--foreground-rgb));
+  background: rgb(var(--background-rgb));
+}
+
+/* 阅读器样式 */
+.reader-container {
+  @apply max-w-3xl mx-auto px-4 py-8;
+}
+
+.reader-content {
+  @apply prose prose-lg dark:prose-invert prose-gray max-w-none;
+}
+
+/* 桌面版阅读样式 */
+@media (min-width: 768px) {
+  .reader-content {
+    @apply prose-xl;
+    line-height: 1.8;
+  }
+}
+
+/* 夜间模式文本颜色 */
+.dark .reader-content {
+  color: #e0e0e0;
+}
+
+.dark h1, .dark h2, .dark h3, .dark h4, .dark h5, .dark h6 {
+  color: #ffffff !important;
+}
+
+/* 高亮样式 */
+.highlight-background {
+  background-color: rgba(255, 230, 0, 0.3);
+  border-radius: 2px;
+  padding: 0 2px;
+  margin: 0 -2px;
+  transition: background-color 0.2s;
+}
+
+.dark .highlight-background {
+  background-color: rgba(255, 230, 0, 0.2);
+}
+
+.highlight-wave {
+  background-image: linear-gradient(45deg, transparent 65%, #4f46e5 80%, transparent 90%);
+  background-repeat: repeat-x;
+  background-size: 10px 2px;
+  background-position: 0 100%;
+  padding-bottom: 2px;
+}
+
+.dark .highlight-wave {
+  background-image: linear-gradient(45deg, transparent 65%, #818cf8 80%, transparent 90%);
+}
+
+.highlight-underline {
+  border-bottom: 2px solid #4f46e5;
+  padding-bottom: 1px;
+}
+
+.dark .highlight-underline {
+  border-bottom-color: #818cf8;
+}
+
+/* 工具栏样式 */
+.toolbar {
+  @apply fixed top-0 left-0 right-0 bg-white/80 dark:bg-dark-100/80 backdrop-blur-sm transition-transform duration-300 z-50 shadow-md;
+}
+
+.toolbar-hidden {
+  @apply -translate-y-full;
+}
+
+/* 字体设置对话框样式 */
+.settings-dialog {
+  @apply fixed inset-x-0 bottom-0 bg-white dark:bg-dark-100 rounded-t-2xl shadow-lg transform transition-transform duration-300 z-50;
+}
+
+.settings-dialog-hidden {
+  @apply translate-y-full;
+}
+
+/* 滑动条样式 */
+.slider {
+  @apply w-full h-2 bg-gray-200 dark:bg-dark-300 rounded-lg appearance-none cursor-pointer;
+}
+
+.slider::-webkit-slider-thumb {
+  @apply w-4 h-4 bg-primary-500 rounded-full appearance-none;
+}
+
+/* 章节列表样式 */
+.chapter-list {
+  @apply divide-y divide-gray-200 dark:divide-dark-300;
+}
+
+.chapter-item {
+  @apply py-4 px-6 hover:bg-gray-50 dark:hover:bg-dark-200 cursor-pointer;
+}
+
+.chapter-item.active {
+  @apply bg-primary-50 dark:bg-primary-900/20;
+}
+
+/* 滚动条样式 */
+::-webkit-scrollbar {
+  @apply w-2;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-gray-100 dark:bg-dark-200;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-gray-300 dark:bg-dark-500 rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-gray-400 dark:bg-dark-600;
+}
+
+/* 动画效果 */
+.page-turn {
+  @apply transition-transform duration-300;
+}
+
+.page-turn-prev {
+  @apply -translate-x-full opacity-0;
+}
+
+.page-turn-next {
+  @apply translate-x-full opacity-0;
+}
+
+/* 隐藏滚动条但保留滚动功能 */
+.scrollbar-hide {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;  /* Chrome, Safari and Opera */
+} 
