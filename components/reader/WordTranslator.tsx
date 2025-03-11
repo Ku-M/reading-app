@@ -81,26 +81,26 @@ export default function WordTranslator({ word }: WordTranslatorProps) {
   };
   
   // 点击外部时关闭翻译
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        tooltipRef.current && 
-        !tooltipRef.current.contains(event.target as Node) &&
-        wordRef.current && 
-        !wordRef.current.contains(event.target as Node)
-      ) {
-        // 在移动端上，给用户更多时间操作，不要立即关闭
-        if (!isMobile) {
-          setIsOpen(false);
-        }
-      }
-    };
+  // useEffect(() => {
+  //   const handleClickOutside = (event: MouseEvent) => {
+  //     if (
+  //       tooltipRef.current && 
+  //       !tooltipRef.current.contains(event.target as Node) &&
+  //       wordRef.current && 
+  //       !wordRef.current.contains(event.target as Node)
+  //     ) {
+  //       // 在移动端上，给用户更多时间操作，不要立即关闭
+  //       // if (!isMobile) {
+  //       //   setIsOpen(false);
+  //       // }
+  //     }
+  //   };
     
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [isMobile]);
+  //   document.addEventListener('mousedown', handleClickOutside);
+  //   return () => {
+  //     document.removeEventListener('mousedown', handleClickOutside);
+  //   };
+  // }, [isMobile]);
   
   // 计算tooltip位置
   const getTooltipPosition = () => {
@@ -181,7 +181,7 @@ export default function WordTranslator({ word }: WordTranslatorProps) {
         >
           <div className="bg-white dark:bg-[#1a1a1a] rounded-lg shadow-lg border border-gray-200 dark:border-gray-800 p-3 w-full">
             <div className="relative">
-              {isMobile && (
+            {/* {isMobile && (
                 <div className="absolute top-0 right-0">
                   <button 
                     onClick={handleClose}
@@ -193,7 +193,7 @@ export default function WordTranslator({ word }: WordTranslatorProps) {
                   </button>
                 </div>
               )}
-              
+               */}
               {isLoading ? (
                 <div className="flex items-center justify-center py-2">
                   <div className="w-5 h-5 border-2 border-t-transparent border-primary-500 rounded-full animate-spin"></div>

@@ -29,27 +29,65 @@ export default function TextSelector({ bookId, chapterId }: TextSelectorProps) {
   
   // 翻译相关状态
   const [showTranslation, setShowTranslation] = useState(false)
+  const [showWordTranslation, setShowWordTranslation] = useState(false)
   const [translationData, setTranslationData] = useState<TranslationResponse | null>(null)
   const [isTranslating, setIsTranslating] = useState(false)
   const [translationError, setTranslationError] = useState(false)
+  const [wordToTranslate, setWordToTranslate] = useState('')
   const audioRef = useRef<HTMLAudioElement | null>(null)
   
   // 移动端状态
   const [isMobile, setIsMobile] = useState(false)
+  const [isTouching, setIsTouching] = useState(false)
+  const touchStartRef = useRef<{x: number, y: number, target: Element | null} | null>(null)
+  const [touchSelection, setTouchSelection] = useState<{start: number, end: number} | null>(null)
   
-  // 检测设备类型
-  useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768)
-    }
+  // Refs
+  const toolbarRef = useRef<HTMLDivElement>(null)
+  const translationRef = useRef<HTMLDivElement>(null)
+  
+  // 获取所有文本节点
+  const getAllTextNodes = useCallback((element: Element): Text[] => {
+    const textNodes: Text[] = [];
+    const walk = document.createTreeWalker(
+      element,
+      NodeFilter.SHOW_TEXT,
+      null
+    );
     
-    checkMobile()
-    window.addEventListener('resize', checkMobile)
-    
-    return () => {
-      window.removeEventListener('resize', checkMobile)
+    let node: Text | null;
+    while (node = walk.nextNode() as Text) {
+      if (node.textContent?.trim()) {
+        textNodes.push(node);
+      }
     }
-  }, [])
+    return textNodes;
+  }, []);
+
+  // 获取触摸位置对应的文本节点和偏移量
+  const getTouchPosition = useCallback((x: number, y: number) => {
+    const range = document.caretRangeFromPoint(x, y);
+    if (!range) return null;
+    return {
+      node: range.startContainer,
+      offset: range.startOffset
+    };
+  }, []);
+
+  // 创建文本选择范围
+  const createSelectionFromTouch = useCallback((startNode: Node, startOffset: number, endNode: Node, endOffset: number) => {
+    const range = document.createRange();
+    range.setStart(startNode, startOffset);
+    range.setEnd(endNode, endOffset);
+    
+    const selection = window.getSelection();
+    if (selection) {
+      selection.removeAllRanges();
+      selection.addRange(range);
+      return selection;
+    }
+    return null;
+  }, []);
 
   // 处理文本选择事件
   const handleTextSelection = useCallback(() => {
@@ -97,7 +135,7 @@ export default function TextSelector({ bookId, chapterId }: TextSelectorProps) {
   }, [setToolbarVisible, isMobile])
 
   // 处理点击事件（关闭工具栏和翻译）
-  const handleClickOutside = useCallback((e: MouseEvent) => {
+  const handleClickOutside = useCallback((e: MouseEvent | TouchEvent) => {
     const toolbar = document.getElementById('text-selector-toolbar')
     const translationTooltip = document.getElementById('translation-tooltip')
     
@@ -106,9 +144,121 @@ export default function TextSelector({ bookId, chapterId }: TextSelectorProps) {
       (!translationTooltip || !translationTooltip.contains(e.target as Node))
     ) {
       setIsVisible(false)
-      setShowTranslation(false)
+      setShowWordTranslation(false)
     }
   }, [])
+
+  // 处理触摸开始事件
+  const handleTouchStart = useCallback((e: TouchEvent) => {
+    if (e.touches.length !== 1) return;
+    
+    const touch = e.touches[0];
+    const position = getTouchPosition(touch.clientX, touch.clientY);
+    if (!position) return;
+    
+    touchStartRef.current = {
+      x: touch.clientX,
+      y: touch.clientY,
+      target: e.target as Element
+    };
+    setIsTouching(true);
+    setTouchSelection(null);
+  }, [getTouchPosition]);
+
+  // 处理触摸移动事件
+  const handleTouchMove = useCallback((e: TouchEvent) => {
+    if (!touchStartRef.current || !isTouching || e.touches.length !== 1) return;
+    
+    const touch = e.touches[0];
+    const startPos = getTouchPosition(touchStartRef.current.x, touchStartRef.current.y);
+    const currentPos = getTouchPosition(touch.clientX, touch.clientY);
+    
+    if (!startPos || !currentPos) return;
+    
+    // 创建选区
+    const selection = createSelectionFromTouch(
+      startPos.node,
+      startPos.offset,
+      currentPos.node,
+      currentPos.offset
+    );
+    
+    if (selection) {
+      handleTextSelection();
+    }
+  }, [isTouching, getTouchPosition, createSelectionFromTouch, handleTextSelection]);
+
+  // 处理触摸结束事件
+  const handleTouchEnd = useCallback((e: TouchEvent) => {
+    setIsTouching(false);
+    
+    // 防止工具栏点击时关闭翻译
+    const toolbar = document.getElementById('text-selector-toolbar');
+    const translationTooltip = document.getElementById('translation-tooltip');
+    
+    if (
+      (toolbar && toolbar.contains(e.target as Node)) || 
+      (translationTooltip && translationTooltip.contains(e.target as Node))
+    ) {
+      return;
+    }
+    
+    // 处理文本选择
+    setTimeout(() => {
+      const selection = window.getSelection();
+      if (selection && !selection.isCollapsed && selection.toString().trim()) {
+        handleTextSelection();
+      } else {
+        // 如果没有选择文本，则关闭工具栏和翻译
+        handleClickOutside(e);
+      }
+    }, 100);
+  }, [handleTextSelection, handleClickOutside]);
+
+  // 检测设备类型
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768)
+    }
+    
+    checkMobile()
+    window.addEventListener('resize', checkMobile)
+    
+    return () => {
+      window.removeEventListener('resize', checkMobile)
+    }
+  }, [])
+  
+  // 禁止页面缩放
+  useEffect(() => {
+    if (isMobile) {
+      // 添加meta标签禁止缩放
+      let viewportMeta = document.querySelector('meta[name="viewport"]')
+      if (!viewportMeta) {
+        viewportMeta = document.createElement('meta')
+        viewportMeta.setAttribute('name', 'viewport')
+        document.head.appendChild(viewportMeta)
+      }
+      viewportMeta.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no')
+      
+      // 禁止双指缩放
+      const preventZoom = (e: TouchEvent) => {
+        if (e.touches.length > 1) {
+          e.preventDefault()
+        }
+      }
+      
+      document.addEventListener('touchmove', preventZoom, { passive: false })
+      
+      return () => {
+        document.removeEventListener('touchmove', preventZoom)
+        // 恢复meta标签
+        if (viewportMeta) {
+          viewportMeta.setAttribute('content', 'width=device-width, initial-scale=1.0')
+        }
+      }
+    }
+  }, [isMobile])
 
   // 添加事件监听
   useEffect(() => {
@@ -120,25 +270,29 @@ export default function TextSelector({ bookId, chapterId }: TextSelectorProps) {
       // 使用正确的CSS属性
       (document.body.style as any).msUserSelect = 'text';
       (document.body.style as any).MozUserSelect = 'text';
-      
-      // 禁用默认的触摸行为
-      document.addEventListener('touchstart', (e) => {
-        // 允许默认行为继续，以便用户可以选择文本
-      }, { passive: true });
     }
     
     // 使用mouseup事件处理文本选择
     const handleMouseUp = (e: MouseEvent) => {
       // 防止工具栏点击时关闭翻译
       const toolbar = document.getElementById('text-selector-toolbar');
-      if (toolbar && toolbar.contains(e.target as Node)) {
+      const translationTooltip = document.getElementById('translation-tooltip');
+      
+      if (
+        (toolbar && toolbar.contains(e.target as Node)) || 
+        (translationTooltip && translationTooltip.contains(e.target as Node))
+      ) {
         return;
       }
       
+      // 处理文本选择
       setTimeout(() => {
         const selection = window.getSelection();
         if (selection && !selection.isCollapsed && selection.toString().trim()) {
           handleTextSelection();
+        } else {
+          // 如果没有选择文本，则关闭工具栏和翻译
+          handleClickOutside(e);
         }
       }, 10);
     };
@@ -148,49 +302,20 @@ export default function TextSelector({ bookId, chapterId }: TextSelectorProps) {
     
     // 为移动设备添加触摸事件
     if (isMobile) {
-      // 处理触摸结束事件，用于文本选择
-      const handleTouchEnd = (e: TouchEvent) => {
-        // 防止工具栏点击时关闭翻译
-        const toolbar = document.getElementById('text-selector-toolbar');
-        if (toolbar && toolbar.contains(e.target as Node)) {
-          return;
-        }
-        
-        setTimeout(() => {
-          const selection = window.getSelection();
-          if (selection && !selection.isCollapsed && selection.toString().trim()) {
-            handleTextSelection();
-          }
-        }, 100);
-      };
-      
-      // 处理触摸开始事件，用于关闭翻译
-      const handleTouchStart = (e: TouchEvent) => {
-        const toolbar = document.getElementById('text-selector-toolbar');
-        const translationTooltip = document.getElementById('translation-tooltip');
-        
-        if (
-          (!toolbar || !toolbar.contains(e.target as Node)) && 
-          (!translationTooltip || !translationTooltip.contains(e.target as Node))
-        ) {
-          setIsVisible(false);
-          setShowTranslation(false);
-        }
-      };
-      
+      document.addEventListener('touchstart', handleTouchStart, { passive: true });
+      document.addEventListener('touchmove', handleTouchMove, { passive: true });
       document.addEventListener('touchend', handleTouchEnd);
-      document.addEventListener('touchstart', handleTouchStart);
       
       return () => {
         document.removeEventListener('mouseup', handleMouseUp);
         document.removeEventListener('mousedown', handleClickOutside);
-        document.removeEventListener('touchend', handleTouchEnd);
         document.removeEventListener('touchstart', handleTouchStart);
+        document.removeEventListener('touchmove', handleTouchMove);
+        document.removeEventListener('touchend', handleTouchEnd);
         
         // 恢复默认的文本选择行为
         document.body.style.userSelect = '';
         document.body.style.webkitUserSelect = '';
-        // 使用正确的CSS属性
         (document.body.style as any).msUserSelect = '';
         (document.body.style as any).MozUserSelect = '';
       };
@@ -200,7 +325,7 @@ export default function TextSelector({ bookId, chapterId }: TextSelectorProps) {
       document.removeEventListener('mouseup', handleMouseUp);
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [handleTextSelection, handleClickOutside, isMobile]);
+  }, [handleTextSelection, handleClickOutside, isMobile, isTouching, handleTouchStart, handleTouchMove, handleTouchEnd]);
 
   // 复制文本
   const handleCopy = () => {
@@ -272,18 +397,24 @@ export default function TextSelector({ bookId, chapterId }: TextSelectorProps) {
   };
   
   // 翻译选中文本
-  const handleTranslate = async (e: React.MouseEvent) => {
-    e.stopPropagation(); // 防止点击事件冒泡，避免工具栏点击时关闭翻译
+  const handleTranslate = async (e?: React.MouseEvent) => {
+    e?.stopPropagation(); // 防止点击事件冒泡，避免工具栏点击时关闭翻译
     
     if (isTranslating) return
     
     setIsTranslating(true)
     setTranslationError(false)
-    setShowTranslation(true)
+    const textToTranslate = e ? selectedText : wordToTranslate // 根据来源选择要翻译的文本
+    const isFromToolbar = Boolean(e) // 判断是否来自工具栏
+    
+    if (isFromToolbar) {
+      setShowTranslation(true)
+    } else {
+      setShowWordTranslation(true)
+    }
     
     try {
-      // 使用 Next.js API 路由
-      const response = await fetch(`/api/translate?text=${encodeURIComponent(selectedText)}&type=text`)
+      const response = await fetch(`/api/translate?text=${encodeURIComponent(textToTranslate)}&type=text`)
       
       if (!response.ok) {
         throw new Error('翻译请求失败')
@@ -304,24 +435,39 @@ export default function TextSelector({ bookId, chapterId }: TextSelectorProps) {
     }
   }
 
+  // 处理单词点击
+  const handleWordClick = (word: string) => {
+    setWordToTranslate(word)
+    handleTranslate()
+  }
+
   // 关闭翻译和工具栏
   const handleClose = () => {
     setIsVisible(false)
     setShowTranslation(false)
+    setShowWordTranslation(false)
   }
 
-  if (!isVisible && !showTranslation) return null
+  // 关闭函数，用于关闭翻译页面和工具栏
+  const closeAll = useCallback(() => {
+    setShowTranslation(false)
+    setShowWordTranslation(false)
+    setIsVisible(false)
+    setToolbarVisible(false)
+  }, [setToolbarVisible])
+
+  if (!isVisible && !showTranslation && !showWordTranslation) return null
 
   // 计算翻译弹窗位置，确保在移动端上正确显示
   const translationPosition = {
-    left: position.x,
-    top: isMobile 
-      ? Math.min(position.y + 60, window.innerHeight - 200) // 确保在移动端上不会超出屏幕底部
-      : position.y + 60
+    left: '50%',
+    top: '50%',
+    transform: 'translate(-50%, -50%)'
   }
 
   return (
     <>
+      {/* 工具栏 */}
       {isVisible && (
         <div
           id="text-selector-toolbar"
@@ -331,9 +477,9 @@ export default function TextSelector({ bookId, chapterId }: TextSelectorProps) {
             top: position.y
           }}
         >
-          <div className={`bg-white/90 dark:bg-[#1a1a1a]/95 backdrop-blur-md rounded-full shadow-lg border border-gray-200 dark:border-gray-800 flex items-center h-12 px-2 ${isMobile ? 'flex-wrap justify-center' : ''}`}>
+          <div className={`bg-white/90 dark:bg-[#1a1a1a]/95 backdrop-blur-md rounded-full shadow-lg border border-gray-200 dark:border-gray-800 flex items-center h-12 px-2 ${isMobile ? 'flex-wrap gap-1 justify-center w-[calc(100vw-32px)] max-w-md' : ''}`}>
             <button
-              className="flex flex-col items-center justify-center w-16 h-12 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#252525] rounded-full transition-colors group mx-1"
+              className={`flex flex-col items-center justify-center ${isMobile ? 'w-14' : 'w-16'} h-12 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#252525] rounded-full transition-colors group`}
               onClick={handleCopy}
               aria-label="复制文本"
             >
@@ -344,7 +490,7 @@ export default function TextSelector({ bookId, chapterId }: TextSelectorProps) {
             </button>
 
             <button
-              className="flex flex-col items-center justify-center w-16 h-12 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#252525] rounded-full transition-colors group mx-1"
+              className={`flex flex-col items-center justify-center ${isMobile ? 'w-14' : 'w-16'} h-12 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#252525] rounded-full transition-colors group`}
               onClick={() => handleHighlight('background')}
               aria-label="马克笔高亮"
             >
@@ -355,7 +501,7 @@ export default function TextSelector({ bookId, chapterId }: TextSelectorProps) {
             </button>
 
             <button
-              className="flex flex-col items-center justify-center w-16 h-12 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#252525] rounded-full transition-colors group mx-1"
+              className={`flex flex-col items-center justify-center ${isMobile ? 'w-14' : 'w-16'} h-12 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#252525] rounded-full transition-colors group`}
               onClick={() => handleHighlight('wave')}
               aria-label="波浪线高亮"
             >
@@ -366,7 +512,7 @@ export default function TextSelector({ bookId, chapterId }: TextSelectorProps) {
             </button>
 
             <button
-              className="flex flex-col items-center justify-center w-16 h-12 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#252525] rounded-full transition-colors group mx-1"
+              className={`flex flex-col items-center justify-center ${isMobile ? 'w-14' : 'w-16'} h-12 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#252525] rounded-full transition-colors group`}
               onClick={() => handleHighlight('underline')}
               aria-label="直线高亮"
             >
@@ -377,7 +523,7 @@ export default function TextSelector({ bookId, chapterId }: TextSelectorProps) {
             </button>
             
             <button
-              className="flex flex-col items-center justify-center w-16 h-12 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#252525] rounded-full transition-colors group mx-1"
+              className={`flex flex-col items-center justify-center ${isMobile ? 'w-14' : 'w-16'} h-12 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#252525] rounded-full transition-colors group`}
               onClick={handleTranslate}
               aria-label="翻译文本"
             >
@@ -386,87 +532,190 @@ export default function TextSelector({ bookId, chapterId }: TextSelectorProps) {
               </svg>
               <span className="text-[10px] text-gray-600 dark:text-gray-400">翻译</span>
             </button>
-            
-            {isMobile && (
-              <button
-                className="flex flex-col items-center justify-center w-16 h-12 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#252525] rounded-full transition-colors group mx-1"
-                onClick={handleClose}
-                aria-label="关闭"
-              >
-                <svg className="w-5 h-5 mb-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-                <span className="text-[10px] text-gray-600 dark:text-gray-400">关闭</span>
-              </button>
-            )}
           </div>
         </div>
       )}
       
+      {/* 工具栏触发的翻译结果 */}
       {showTranslation && (
-        <div
-          id="translation-tooltip"
-          className="fixed z-[70] transform -translate-x-1/2"
-          style={{
-            left: translationPosition.left,
-            top: translationPosition.top,
-            maxWidth: isMobile ? 'calc(100vw - 40px)' : '400px'
-          }}
-          onClick={(e) => e.stopPropagation()} // 防止点击翻译界面时关闭它
-        >
-          <div className="bg-white dark:bg-[#1a1a1a] rounded-lg shadow-lg border border-gray-200 dark:border-gray-800 p-4 w-full">
-            <div className="mb-2">
-              <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100">翻译结果</h3>
-            </div>
-            
-            <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mb-2">
-              <div className="break-words max-w-[calc(100%-30px)]">{selectedText}</div>
-              {translationData?.speakUrl && (
-                <button 
-                  onClick={playOriginalAudio}
-                  className="text-primary-500 hover:text-primary-600 dark:text-primary-400 dark:hover:text-primary-300 ml-3 flex-shrink-0"
-                  aria-label="播放原文发音"
-                >
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
-                  </svg>
-                </button>
-              )}
-            </div>
-            
-            <div className="border-t border-gray-200 dark:border-gray-800 pt-2">
+        <>
+          {/* 遮罩层 */}
+          <div 
+            className="fixed inset-0 z-[9998] bg-black/30" 
+            onClick={closeAll}
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'rgba(0, 0, 0, 0.3)',
+            }}
+          />
+          
+          {/* 翻译内容 */}
+          <div 
+            id="translation-tooltip"
+            className="fixed z-[9999] bg-white dark:bg-[#1a1a1a] shadow-xl rounded-lg border dark:border-gray-800 p-4 w-[calc(100vw-32px)] max-w-sm"
+            style={{
+              position: 'fixed',
+              left: '50%',
+              top: '50%',
+              transform: 'translate(-50%, -50%)',
+              maxHeight: '70vh',
+              overflowY: 'auto'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="space-y-2">
               {isTranslating ? (
-                <div className="flex items-center justify-center py-4">
-                  <div className="w-5 h-5 border-2 border-t-transparent border-primary-500 rounded-full animate-spin"></div>
-                  <span className="ml-2 text-sm">翻译中...</span>
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-500"></div>
                 </div>
-              ) : translationError ? (
-                <div className="text-sm text-red-500 py-2">翻译失败，请重试</div>
               ) : translationData ? (
-                <div className="flex items-center justify-between">
-                  <div className="text-sm dark:text-gray-300 break-words max-w-[calc(100%-30px)]">
-                    {translationData.translation && translationData.translation.length > 0 && (
-                      <span>{translationData.translation[0]}</span>
+                <div>
+                  <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mb-2">
+                    <div className="break-words max-w-[calc(100%-60px)]">{selectedText}</div>
+                    {translationData?.speakUrl && (
+                      <button 
+                        onClick={playOriginalAudio}
+                        className="text-primary-500 hover:text-primary-600 dark:text-primary-400 dark:hover:text-primary-300 ml-5 flex-shrink-0"
+                        aria-label="播放原文发音"
+                      >
+                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                        </svg>
+                      </button>
                     )}
                   </div>
-                  {translationData.tSpeakUrl && (
-                    <button 
-                      onClick={playTranslationAudio}
-                      className="text-primary-500 hover:text-primary-600 dark:text-primary-400 dark:hover:text-primary-300 ml-3 flex-shrink-0"
-                      aria-label="播放翻译发音"
-                    >
-                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
-                      </svg>
-                    </button>
-                  )}
+                  <div className="border-b border-gray-200 dark:border-gray-800 mb-2"></div>
+                  <div>
+                    {translationData.basic ? (
+                      <div>
+                        <div className="font-medium text-lg mb-1 dark:text-white">{translationData.basic.phonetic && `[${translationData.basic.phonetic}]`}</div>
+                        <div className="space-y-1">
+                          {translationData.basic.explains.map((explain: string, i: number) => (
+                            <div key={i} className="text-sm dark:text-gray-300">{explain}</div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between">
+                        <div className="text-sm dark:text-gray-300 break-words max-w-[calc(100%-60px)]">
+                          {translationData.translation && translationData.translation.length > 0 && (
+                            <span>{translationData.translation[0]}</span>
+                          )}
+                        </div>
+                        {translationData.tSpeakUrl && (
+                          <button 
+                            onClick={playTranslationAudio}
+                            className="text-primary-500 hover:text-primary-600 dark:text-primary-400 dark:hover:text-primary-300 ml-5 flex-shrink-0"
+                            aria-label="播放翻译发音"
+                          >
+                            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                            </svg>
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              ) : (
-                <div className="text-sm dark:text-gray-300 py-2">正在加载翻译...</div>
-              )}
+              ) : null}
             </div>
           </div>
-        </div>
+        </>
+      )}
+
+      {/* 单词点击触发的翻译结果 */}
+      {showWordTranslation && (
+        <>
+          {/* 遮罩层 */}
+          <div 
+            className="fixed inset-0 z-[9998] bg-black/30" 
+            onClick={() => setShowWordTranslation(false)}
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'rgba(0, 0, 0, 0.3)',
+            }}
+          />
+          
+          {/* 翻译内容 */}
+          <div 
+            id="word-translation-tooltip"
+            className="fixed z-[9999] bg-white dark:bg-[#1a1a1a] shadow-xl rounded-lg border dark:border-gray-800 p-4 w-[calc(100vw-32px)] max-w-sm"
+            style={{
+              position: 'fixed',
+              left: '50%',
+              top: '50%',
+              transform: 'translate(-50%, -50%)',
+              maxHeight: '70vh',
+              overflowY: 'auto'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="space-y-2">
+              {isTranslating ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-500"></div>
+                </div>
+              ) : translationData ? (
+                <div>
+                  <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mb-2">
+                    <div className="break-words max-w-[calc(100%-60px)]">{wordToTranslate}</div>
+                    {translationData?.speakUrl && (
+                      <button 
+                        onClick={playOriginalAudio}
+                        className="text-primary-500 hover:text-primary-600 dark:text-primary-400 dark:hover:text-primary-300 ml-5 flex-shrink-0"
+                        aria-label="播放原文发音"
+                      >
+                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
+                  <div className="border-b border-gray-200 dark:border-gray-800 mb-2"></div>
+                  <div>
+                    {translationData.basic ? (
+                      <div>
+                        <div className="font-medium text-lg mb-1 dark:text-white">{translationData.basic.phonetic && `[${translationData.basic.phonetic}]`}</div>
+                        <div className="space-y-1">
+                          {translationData.basic.explains.map((explain: string, i: number) => (
+                            <div key={i} className="text-sm dark:text-gray-300">{explain}</div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between">
+                        <div className="text-sm dark:text-gray-300 break-words max-w-[calc(100%-60px)]">
+                          {translationData.translation && translationData.translation.length > 0 && (
+                            <span>{translationData.translation[0]}</span>
+                          )}
+                        </div>
+                        {translationData.tSpeakUrl && (
+                          <button 
+                            onClick={playTranslationAudio}
+                            className="text-primary-500 hover:text-primary-600 dark:text-primary-400 dark:hover:text-primary-300 ml-5 flex-shrink-0"
+                            aria-label="播放翻译发音"
+                          >
+                            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                            </svg>
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </>
       )}
     </>
   )

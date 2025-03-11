@@ -1,8 +1,8 @@
 import axios from 'axios'
 import type { PaginatedResponse, Book, Chapter } from '@/types'
 
-const API_BASE_URL = 'http://127.0.0.1:8080/api'
-
+// const API_BASE_URL = 'http://127.0.0.1:8080/api'
+const API_BASE_URL = 'http://175.178.190.253:8081/api'
 const api = axios.create({
   baseURL: API_BASE_URL,
   timeout: 10000,

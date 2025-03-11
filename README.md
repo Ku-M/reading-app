@@ -1,6 +1,6 @@
-# 微阅读 - 现代化电子书阅读器
+# ABHISECA - 外语阅读器
 
-一个模仿微信读书风格的现代化电子书阅读器，使用 Next.js 和 TypeScript 构建。
+外语阅读器，使用 Next.js 和 TypeScript 构建。
 
 ## 主要功能
 

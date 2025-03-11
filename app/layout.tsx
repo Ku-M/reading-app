@@ -6,8 +6,8 @@ import Providers from './providers'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: '微阅读 - 现代化电子书阅读器',
-  description: '一个模仿微信读书风格的现代化电子书阅读器',
+  title: 'ABHISECA - 外语阅读器',
+  description: '外语阅读器',
 }
 
 export default function RootLayout({
