@@ -1,48 +1,48 @@
 {
   "..\\node_modules\\@heroui\\accordion\\dist\\chunk-RCYVG55M.mjs -> @heroui/dom-animation": {
-    "id": "..\\node_modules\\@heroui\\accordion\\dist\\chunk-RCYVG55M.mjs -> @heroui/dom-animation",
+    "id": 2041,
     "files": []
   },
   "..\\node_modules\\@heroui\\calendar\\dist\\chunk-XPMFI4TR.mjs -> @heroui/dom-animation": {
-    "id": "..\\node_modules\\@heroui\\calendar\\dist\\chunk-XPMFI4TR.mjs -> @heroui/dom-animation",
+    "id": 2041,
     "files": []
   },
   "..\\node_modules\\@heroui\\modal\\dist\\chunk-UKDXCIYN.mjs -> @heroui/dom-animation": {
-    "id": "..\\node_modules\\@heroui\\modal\\dist\\chunk-UKDXCIYN.mjs -> @heroui/dom-animation",
+    "id": 2041,
     "files": []
   },
   "..\\node_modules\\@heroui\\navbar\\dist\\chunk-63OA3RRZ.mjs -> @heroui/dom-animation": {
-    "id": "..\\node_modules\\@heroui\\navbar\\dist\\chunk-63OA3RRZ.mjs -> @heroui/dom-animation",
+    "id": 2041,
     "files": []
   },
   "..\\node_modules\\@heroui\\navbar\\dist\\chunk-GGZP2VLD.mjs -> @heroui/dom-animation": {
-    "id": "..\\node_modules\\@heroui\\navbar\\dist\\chunk-GGZP2VLD.mjs -> @heroui/dom-animation",
+    "id": 2041,
     "files": []
   },
   "..\\node_modules\\@heroui\\popover\\dist\\chunk-REV5W46G.mjs -> @heroui/dom-animation": {
-    "id": "..\\node_modules\\@heroui\\popover\\dist\\chunk-REV5W46G.mjs -> @heroui/dom-animation",
+    "id": 2041,
     "files": []
   },
   "..\\node_modules\\@heroui\\popover\\dist\\chunk-XPO5AVRM.mjs -> @heroui/dom-animation": {
-    "id": "..\\node_modules\\@heroui\\popover\\dist\\chunk-XPO5AVRM.mjs -> @heroui/dom-animation",
+    "id": 2041,
     "files": []
   },
   "..\\node_modules\\@heroui\\ripple\\dist\\chunk-QHRCZSEO.mjs -> @heroui/dom-animation": {
-    "id": "..\\node_modules\\@heroui\\ripple\\dist\\chunk-QHRCZSEO.mjs -> @heroui/dom-animation",
+    "id": 2041,
     "files": [
-      "static/chunks/_app-pages-browser_node_modules_heroui_dom-animation_dist_index_mjs.js"
+      "static/chunks/41.732ae2320bcd68b7.js"
     ]
   },
   "..\\node_modules\\@heroui\\toast\\dist\\chunk-OZQLQQGM.mjs -> ./src-UW24ZMRV.mjs": {
-    "id": "..\\node_modules\\@heroui\\toast\\dist\\chunk-OZQLQQGM.mjs -> ./src-UW24ZMRV.mjs",
+    "id": null,
     "files": []
   },
   "..\\node_modules\\@heroui\\toast\\dist\\chunk-OZQLQQGM.mjs -> framer-motion": {
-    "id": "..\\node_modules\\@heroui\\toast\\dist\\chunk-OZQLQQGM.mjs -> framer-motion",
+    "id": null,
     "files": []
   },
   "..\\node_modules\\@heroui\\tooltip\\dist\\chunk-BWXGEJBS.mjs -> @heroui/dom-animation": {
-    "id": "..\\node_modules\\@heroui\\tooltip\\dist\\chunk-BWXGEJBS.mjs -> @heroui/dom-animation",
+    "id": 2041,
     "files": []
   }
 }
