@@ -10,7 +10,15 @@ import type { Book, Chapter } from '@/types'
 
 export default function BookPage() {
   const params = useParams()
-  const bookId = params.id as string
+  const bookId = params?.id as string
+  
+  if (!bookId) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-lg text-red-500">无效的书籍ID</div>
+      </div>
+    )
+  }
   
   console.log('书籍ID:', bookId)
   
