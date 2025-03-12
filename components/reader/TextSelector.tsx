@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useReaderStore } from '@/lib/store'
 import { Tooltip } from "@heroui/react"
 import type { HighlightStyle } from '@/types'
+import { translateText } from '@/lib/api'
 
 interface TextSelectorProps {
   bookId: string
@@ -20,6 +21,18 @@ interface TranslationResponse {
   [key: string]: any;
 }
 
+interface TranslationResult {
+  errorCode: string;
+  query: string;
+  translation: any[];
+  dict?: { url: string };
+  webdict?: { url: string };
+  l: string;
+  tSpeakUrl?: string;
+  speakUrl?: string;
+  [key: string]: any;
+}
+
 export default function TextSelector({ bookId, chapterId }: TextSelectorProps) {
   const [isVisible, setIsVisible] = useState(false)
   const [position, setPosition] = useState({ x: 0, y: 0 })
@@ -30,7 +43,7 @@ export default function TextSelector({ bookId, chapterId }: TextSelectorProps) {
   // 翻译相关状态
   const [showTranslation, setShowTranslation] = useState(false)
   const [showWordTranslation, setShowWordTranslation] = useState(false)
-  const [translationData, setTranslationData] = useState<TranslationResponse | null>(null)
+  const [translationData, setTranslationData] = useState<TranslationResult | null>(null)
   const [isTranslating, setIsTranslating] = useState(false)
   const [translationError, setTranslationError] = useState(false)
   const [wordToTranslate, setWordToTranslate] = useState('')
@@ -94,6 +107,14 @@ export default function TextSelector({ bookId, chapterId }: TextSelectorProps) {
     const selection = window.getSelection()
     if (!selection || selection.isCollapsed) {
       return
+    }
+
+    // 检查选择的文本是否在阅读区域内
+    const selectedElement = selection.anchorNode?.parentElement;
+    const readerContent = document.querySelector('.reader-content');
+    
+    if (!readerContent || !selectedElement || !readerContent.contains(selectedElement)) {
+      return;
     }
 
     const text = selection.toString().trim()
@@ -397,49 +418,54 @@ export default function TextSelector({ bookId, chapterId }: TextSelectorProps) {
   };
   
   // 翻译选中文本
-  const handleTranslate = async (e?: React.MouseEvent) => {
-    e?.stopPropagation(); // 防止点击事件冒泡，避免工具栏点击时关闭翻译
-    
-    if (isTranslating) return
-    
-    setIsTranslating(true)
-    setTranslationError(false)
-    const textToTranslate = e ? selectedText : wordToTranslate // 根据来源选择要翻译的文本
-    const isFromToolbar = Boolean(e) // 判断是否来自工具栏
-    
-    if (isFromToolbar) {
-      setShowTranslation(true)
-    } else {
-      setShowWordTranslation(true)
-    }
-    
+  const handleTranslate = async () => {
+    if (!selectedText) return;
+    setIsTranslating(true);
     try {
-      const response = await fetch(`/api/translate?text=${encodeURIComponent(textToTranslate)}&type=text`)
-      
-      if (!response.ok) {
-        throw new Error('翻译请求失败')
-      }
-      
-      const data = await response.json()
-      
-      if (data.errorCode === "0") {
-        setTranslationData(data)
-      } else {
-        throw new Error(data.message || '翻译失败')
-      }
+      const translation = await translateText(selectedText);
+      setTranslationData({ 
+        errorCode: "0", 
+        translation: [translation],
+        query: selectedText,
+        l: "en2zh"
+      });
     } catch (error) {
-      console.error('翻译出错:', error)
-      setTranslationError(true)
+      console.error('翻译出错:', error);
+      setTranslationData(null);
     } finally {
-      setIsTranslating(false)
+      setIsTranslating(false);
     }
-  }
+    setShowTranslation(true);
+  };
 
   // 处理单词点击
-  const handleWordClick = (word: string) => {
-    setWordToTranslate(word)
-    handleTranslate()
-  }
+  const handleWordClick = async (word: string) => {
+    setWordToTranslate(word);
+    setShowWordTranslation(true);
+    setIsTranslating(true);
+    setTranslationData(null);
+
+    try {
+      const response = await fetch(`/api/translate?text=${encodeURIComponent(word)}&type=word`);
+      
+      if (!response.ok) {
+        throw new Error('翻译请求失败');
+      }
+      
+      const data = await response.json();
+      
+      if (data.errorCode === "0") {
+        setTranslationData(data);
+      } else {
+        throw new Error(data.message || '翻译失败');
+      }
+    } catch (error) {
+      console.error('翻译出错:', error);
+      setTranslationData(null);
+    } finally {
+      setIsTranslating(false);
+    }
+  };
 
   // 关闭翻译和工具栏
   const handleClose = () => {
@@ -633,7 +659,12 @@ export default function TextSelector({ bookId, chapterId }: TextSelectorProps) {
           {/* 遮罩层 */}
           <div 
             className="fixed inset-0 z-[9998] bg-black/30" 
-            onClick={() => setShowWordTranslation(false)}
+            onClick={(e) => {
+              // 只有点击遮罩层本身时才关闭
+              if (e.target === e.currentTarget) {
+                setShowWordTranslation(false);
+              }
+            }}
             style={{
               position: 'fixed',
               top: 0,
@@ -717,6 +748,16 @@ export default function TextSelector({ bookId, chapterId }: TextSelectorProps) {
           </div>
         </>
       )}
+
+      <div 
+        className="reader-content"
+        style={{
+          WebkitUserSelect: 'text',
+          userSelect: 'text'
+        }}
+      >
+        {/* ... existing code ... */}
+      </div>
     </>
   )
 } 

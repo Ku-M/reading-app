@@ -1,7 +1,7 @@
 import axios from 'axios'
 import type { PaginatedResponse, Book, Chapter } from '@/types'
 
-// const API_BASE_URL = 'http://127.0.0.1:8080/api'
+// const API_BASE_URL = 'http://127.0.0.1:8081/api'
 const API_BASE_URL = 'https://ra.ku-m.cn/api'
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -215,6 +215,54 @@ export async function importBook(bookData: {
       success: false,
       message: error.response?.data?.message || '导入书籍失败，请稍后再试'
     }
+  }
+}
+
+// 翻译文本
+export async function translateText(text: string, type: 'word' | 'text' = 'text'): Promise<{
+  translation: string;
+  speakUrl?: string;
+  tSpeakUrl?: string;
+  basic?: {
+    phonetic?: string;
+    explains: string[];
+  };
+  [key: string]: any;
+}> {
+  try {
+    const response = await api.get<{
+      translation: string[];
+      basic?: {
+        phonetic?: string;
+        explains: string[];
+      };
+      speakUrl?: string;
+      tSpeakUrl?: string;
+      [key: string]: any;
+    }>('/translate', {
+      params: { 
+        text, 
+        type 
+      }
+    });
+
+    const data = response.data;
+
+    return {
+      translation: data.translation && data.translation.length > 0 ? data.translation[0] : text,
+      speakUrl: data.speakUrl,
+      tSpeakUrl: data.tSpeakUrl,
+      basic: data.basic,
+      ...(data as object)
+    };
+  } catch (error) {
+    console.error('翻译请求失败:', error);
+    return {
+      translation: text,
+      basic: {
+        explains: ['翻译失败']
+      }
+    };
   }
 }
 

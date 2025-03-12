@@ -50,7 +50,7 @@ const SideNavigation: React.FC<SideNavigationProps> = ({
     <div className="fixed left-0 top-1/2 transform -translate-y-1/2 z-30">
       {/* 导航栏 */}
       <nav 
-        className={`${isExpanded ? 'bg-white/90 dark:bg-[#1a1a1a]/95' : 'bg-[#1b1b1b]'} rounded-r-lg px-2 py-4 shadow-lg border border-gray-200 dark:border-gray-800 backdrop-blur-md flex flex-col items-center space-y-6 transition-all duration-300 ${
+        className={`${isExpanded ? 'bg-white/90 dark:bg-[#1a1a1a]/95' : 'bg-gray-200 dark:bg-[#1b1b1b]'} rounded-r-lg px-2 py-4 shadow-lg border border-gray-200 dark:border-gray-800 backdrop-blur-md flex flex-col items-center space-y-6 transition-all duration-300 ${
           isExpanded 
             ? `${isMobile ? 'w-16' : 'w-16'} opacity-100` 
             : 'w-3 opacity-90'
@@ -59,10 +59,10 @@ const SideNavigation: React.FC<SideNavigationProps> = ({
         {/* 折叠/展开按钮 - 现在是侧边栏的一部分 */}
         <button
           onClick={toggleExpanded}
-          className="absolute right-0 top-1/2 transform -translate-y-1/2 h-16 w-3 bg-[#1b1b1b] rounded-r transition-all duration-300 flex items-center justify-center"
+          className="absolute right-0 top-1/2 transform -translate-y-1/2 h-16 w-3 bg-gray-200 dark:bg-[#1b1b1b] rounded-r transition-all duration-300 flex items-center justify-center"
           aria-label={isExpanded ? "收起导航" : "展开导航"}
         >
-          <div className={`w-1 h-8 bg-gray-400/50 rounded-full transition-all duration-300 ${isExpanded ? 'opacity-100' : 'opacity-70'}`}></div>
+          <div className={`w-1 h-8 bg-gray-400/50 dark:bg-gray-600/50 rounded-full transition-all duration-300 ${isExpanded ? 'opacity-100' : 'opacity-70'}`}></div>
         </button>
 
         {isExpanded && (

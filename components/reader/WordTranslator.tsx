@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { translateText } from '@/lib/api'
 
 interface WordTranslatorProps {
   word: string;
@@ -13,6 +14,10 @@ interface TranslationResponse {
   l: string;
   tSpeakUrl?: string;
   speakUrl?: string;
+  basic?: {
+    phonetic?: string;
+    explains: string[];
+  };
   [key: string]: any;
 }
 
@@ -49,19 +54,17 @@ export default function WordTranslator({ word }: WordTranslatorProps) {
     setIsError(false);
     
     try {
-      const response = await fetch(`/api/translate?text=${encodeURIComponent(word)}&type=word`);
+      const translationResult = await translateText(word, 'word');
       
-      if (!response.ok) {
-        throw new Error('翻译请求失败');
-      }
-      
-      const data = await response.json();
-      
-      if (data.errorCode === "0") {
-        setTranslationData(data);
-      } else {
-        throw new Error(data.message || '翻译失败');
-      }
+      setTranslationData({ 
+        errorCode: "0", 
+        translation: [translationResult.translation],
+        query: word,
+        l: "en2zh",
+        speakUrl: translationResult.speakUrl,
+        tSpeakUrl: translationResult.tSpeakUrl,
+        basic: translationResult.basic
+      });
     } catch (error) {
       console.error('翻译出错:', error);
       setIsError(true);
@@ -81,26 +84,26 @@ export default function WordTranslator({ word }: WordTranslatorProps) {
   };
   
   // 点击外部时关闭翻译
-  // useEffect(() => {
-  //   const handleClickOutside = (event: MouseEvent) => {
-  //     if (
-  //       tooltipRef.current && 
-  //       !tooltipRef.current.contains(event.target as Node) &&
-  //       wordRef.current && 
-  //       !wordRef.current.contains(event.target as Node)
-  //     ) {
-  //       // 在移动端上，给用户更多时间操作，不要立即关闭
-  //       // if (!isMobile) {
-  //       //   setIsOpen(false);
-  //       // }
-  //     }
-  //   };
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        tooltipRef.current && 
+        !tooltipRef.current.contains(event.target as Node) &&
+        wordRef.current && 
+        !wordRef.current.contains(event.target as Node)
+      ) {
+        // 只有点击遮罩层本身时才关闭
+        if (event.target === document.body) {
+          setIsOpen(false);
+        }
+      }
+    };
     
-  //   document.addEventListener('mousedown', handleClickOutside);
-  //   return () => {
-  //     document.removeEventListener('mousedown', handleClickOutside);
-  //   };
-  // }, [isMobile]);
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
   
   // 计算tooltip位置
   const getTooltipPosition = () => {
@@ -170,86 +173,87 @@ export default function WordTranslator({ word }: WordTranslatorProps) {
       </span>
       
       {isOpen && (
-        <div
-          ref={tooltipRef}
-          className="fixed z-[100] transform -translate-x-1/2 pointer-events-auto"
-          style={{
-            top: `${position.top - 40}px`,
-            left: `${position.left}px`,
-            maxWidth: isMobile ? 'calc(100vw - 40px)' : '300px'
-          }}
-        >
-          <div className="bg-white dark:bg-[#1a1a1a] rounded-lg shadow-lg border border-gray-200 dark:border-gray-800 p-3 w-full">
-            <div className="relative">
-            {/* {isMobile && (
-                <div className="absolute top-0 right-0">
-                  <button 
-                    onClick={handleClose}
-                    className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 p-1"
-                  >
-                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-              )}
-               */}
-              {isLoading ? (
-                <div className="flex items-center justify-center py-2">
-                  <div className="w-5 h-5 border-2 border-t-transparent border-primary-500 rounded-full animate-spin"></div>
-                  <span className="ml-2 text-sm">翻译中...</span>
-                </div>
-              ) : isError ? (
-                <div className="text-sm text-red-500">翻译失败，请重试</div>
-              ) : translationData ? (
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <div className="text-sm font-bold dark:text-gray-200 break-words max-w-[85%]">{translationData.query}</div>
-                    {translationData.speakUrl && (
-                      <button 
-                        onClick={playOriginalAudio}
-                        className="text-primary-500 hover:text-primary-600 dark:text-primary-400 dark:hover:text-primary-300 flex-shrink-0"
-                        aria-label="播放原文发音"
-                      >
-                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
-                        </svg>
-                      </button>
-                    )}
+        <>
+          {/* 遮罩层 */}
+          <div 
+            className="fixed inset-0 z-[90] bg-black/30" 
+            onClick={(e) => {
+              // 只有点击遮罩层本身时才关闭
+              if (e.target === e.currentTarget) {
+                setIsOpen(false);
+              }
+            }}
+          />
+          
+          <div
+            ref={tooltipRef}
+            className="fixed z-[100] transform -translate-x-1/2 pointer-events-auto"
+            style={{
+              top: `${position.top - 40}px`,
+              left: `${position.left}px`,
+              minWidth: '270px',
+              maxWidth: isMobile ? 'calc(100vw - 40px)' : '300px'
+            }}
+          >
+            <div className="bg-white dark:bg-[#1a1a1a] rounded-lg shadow-lg border border-gray-200 dark:border-gray-800 p-3 w-full">
+              <div className="relative">
+                {isLoading ? (
+                  <div className="flex items-center justify-center py-2">
+                    <div className="w-5 h-5 border-2 border-t-transparent border-primary-500 rounded-full animate-spin"></div>
+                    <span className="ml-2 text-sm">翻译中...</span>
                   </div>
-                  
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="text-xs dark:text-gray-300 break-words max-w-[85%]">
-                      {translationData.translation && translationData.translation.length > 0 && (
-                        <span>{translationData.translation[0]}</span>
+                ) : isError ? (
+                  <div className="text-sm text-red-500">翻译失败，请重试</div>
+                ) : translationData ? (
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="text-sm font-bold dark:text-gray-200 break-words max-w-[calc(100%-60px)]">{translationData.query}</div>
+                      {translationData.speakUrl && (
+                        <button 
+                          onClick={playOriginalAudio}
+                          className="text-primary-500 hover:text-primary-600 dark:text-primary-400 dark:hover:text-primary-300 flex-shrink-0"
+                          aria-label="播放原文发音"
+                        >
+                          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                          </svg>
+                        </button>
                       )}
                     </div>
-                    {translationData.tSpeakUrl && (
-                      <button 
-                        onClick={playTranslationAudio}
-                        className="text-primary-500 hover:text-primary-600 dark:text-primary-400 dark:hover:text-primary-300 flex-shrink-0"
-                        aria-label="播放翻译发音"
-                      >
-                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
-                        </svg>
-                      </button>
-                    )}
+                    
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="text-xs dark:text-gray-300 break-words max-w-[calc(100%-60px)]">
+                        {translationData.translation && translationData.translation.length > 0 && (
+                          <span>{translationData.translation[0]}</span>
+                        )}
+                      </div>
+                      {translationData.tSpeakUrl && (
+                        <button 
+                          onClick={playTranslationAudio}
+                          className="text-primary-500 hover:text-primary-600 dark:text-primary-400 dark:hover:text-primary-300 flex-shrink-0"
+                          aria-label="播放翻译发音"
+                        >
+                          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                          </svg>
+                        </button>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ) : (
-                <div className="text-sm dark:text-gray-300">正在加载翻译...</div>
-              )}
-              
-              {/* 箭头 - 在移动端上不显示 */}
-              {!isMobile && (
-                <div className="absolute left-1/2 bottom-0 transform -translate-x-1/2 translate-y-full">
-                  <div className="border-8 border-transparent border-t-white dark:border-t-[#1a1a1a]"></div>
-                </div>
-              )}
+                ) : (
+                  <div className="text-sm dark:text-gray-300">正在加载翻译...</div>
+                )}
+                
+                {/* 箭头 - 在移动端上不显示 */}
+                {!isMobile && (
+                  <div className="absolute left-1/2 bottom-0 transform -translate-x-1/2 translate-y-full">
+                    <div className="border-8 border-transparent border-t-white dark:border-t-[#1a1a1a]"></div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-        </div>
+        </>
       )}
     </>
   );
