@@ -330,25 +330,34 @@ export default function Reader({ bookId, initialChapterId }: ReaderProps) {
         })
 
         // 重新应用高亮
-        const content = contentRef.current.textContent || ''
+        const paragraphs = contentRef.current.querySelectorAll('p')
         highlights.forEach(highlight => {
-          const index = content.indexOf(highlight.text)
-          if (index !== -1) {
-            const range = document.createRange()
-            const startNode = contentRef.current!.firstChild
-            if (startNode) {
-              range.setStart(startNode, index)
-              range.setEnd(startNode, index + highlight.text.length)
-              
-              const span = document.createElement('span')
-              span.className = `highlight-${highlight.style}`
-              span.dataset.bookId = bookId
-              span.dataset.chapterId = currentChapter.chapterId
-              span.dataset.style = highlight.style
-              
-              range.surroundContents(span)
+          paragraphs.forEach(paragraph => {
+            const paragraphText = paragraph.textContent || ''
+            const index = paragraphText.indexOf(highlight.text)
+            
+            if (index !== -1) {
+              try {
+                const range = document.createRange()
+                const startNode = paragraph.firstChild
+                
+                if (startNode) {
+                  range.setStart(startNode, index)
+                  range.setEnd(startNode, index + highlight.text.length)
+                  
+                  const span = document.createElement('span')
+                  span.className = `highlight-${highlight.style}`
+                  span.dataset.bookId = bookId
+                  span.dataset.chapterId = currentChapter.chapterId
+                  span.dataset.style = highlight.style
+                  
+                  range.surroundContents(span)
+                }
+              } catch (rangeError) {
+                console.error('恢复高亮失败（单个段落）:', rangeError)
+              }
             }
-          }
+          })
         })
       } catch (error) {
         console.error('恢复高亮失败:', error)

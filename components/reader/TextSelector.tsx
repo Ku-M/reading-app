@@ -159,13 +159,16 @@ export default function TextSelector({ bookId, chapterId }: TextSelectorProps) {
   const handleClickOutside = useCallback((e: MouseEvent | TouchEvent) => {
     const toolbar = document.getElementById('text-selector-toolbar')
     const translationTooltip = document.getElementById('translation-tooltip')
+    const wordTranslationTooltip = document.getElementById('word-translation-tooltip')
     
     if (
       (!toolbar || !toolbar.contains(e.target as Node)) && 
-      (!translationTooltip || !translationTooltip.contains(e.target as Node))
+      (!translationTooltip || !translationTooltip.contains(e.target as Node)) &&
+      (!wordTranslationTooltip || !wordTranslationTooltip.contains(e.target as Node))
     ) {
       setIsVisible(false)
       setShowWordTranslation(false)
+      setShowTranslation(false)
     }
   }, [])
 
@@ -174,13 +177,29 @@ export default function TextSelector({ bookId, chapterId }: TextSelectorProps) {
     if (e.touches.length !== 1) return;
     
     const touch = e.touches[0];
+    const target = e.target as Element;
+    
+    // 检查点击目标是否在可交互白名单中
+    const isInteractiveElement = 
+      target.closest('#text-selector-toolbar') ||
+      target.closest('#translation-tooltip') ||
+      target.closest('.reader-content') ||
+      target.closest('.toolbar') ||
+      target.closest('.chapter-list') ||
+      target.closest('.settings-dialog');
+    
+    if (!isInteractiveElement) {
+      e.preventDefault();
+      return;
+    }
+    
     const position = getTouchPosition(touch.clientX, touch.clientY);
     if (!position) return;
     
     touchStartRef.current = {
       x: touch.clientX,
       y: touch.clientY,
-      target: e.target as Element
+      target: target
     };
     setIsTouching(true);
     setTouchSelection(null);
@@ -196,18 +215,54 @@ export default function TextSelector({ bookId, chapterId }: TextSelectorProps) {
     
     if (!startPos || !currentPos) return;
     
-    // 创建选区
-    const selection = createSelectionFromTouch(
-      startPos.node,
-      startPos.offset,
-      currentPos.node,
-      currentPos.offset
-    );
+    // 计算移动距离
+    const deltaX = Math.abs(touch.clientX - touchStartRef.current.x);
+    const deltaY = Math.abs(touch.clientY - touchStartRef.current.y);
     
-    if (selection) {
-      handleTextSelection();
+    // 只有在移动距离超过一定阈值且主要是向右或向下移动时才触发选择
+    if (deltaX > 30 || deltaY > 30) {
+      const isReaderContent = touchStartRef.current.target?.closest('.reader-content');
+      
+      if (isReaderContent) {
+        if (deltaX > deltaY) {
+          // 主要是水平移动
+          if (touch.clientX > touchStartRef.current.x) {
+            // 向右移动时触发选择
+            const selection = createSelectionFromTouch(
+              startPos.node,
+              startPos.offset,
+              currentPos.node,
+              currentPos.offset
+            );
+            
+            if (selection) {
+              handleTextSelection();
+            }
+          }
+        } else {
+          // 主要是垂直移动
+          if (touch.clientY > touchStartRef.current.y) {
+            // 向下移动时触发选择
+            const selection = createSelectionFromTouch(
+              startPos.node,
+              startPos.offset,
+              currentPos.node,
+              currentPos.offset
+            );
+            
+            if (selection) {
+              handleTextSelection();
+            }
+          }
+        }
+      }
     }
-  }, [isTouching, getTouchPosition, createSelectionFromTouch, handleTextSelection]);
+  }, [
+    isTouching, 
+    getTouchPosition, 
+    createSelectionFromTouch, 
+    handleTextSelection
+  ]);
 
   // 处理触摸结束事件
   const handleTouchEnd = useCallback((e: TouchEvent) => {
@@ -286,11 +341,14 @@ export default function TextSelector({ bookId, chapterId }: TextSelectorProps) {
     // 为移动设备启用文本选择
     if (isMobile) {
       // 使文本可选择
-      document.body.style.userSelect = 'text';
-      document.body.style.webkitUserSelect = 'text';
+      document.body.style.userSelect = 'none';
+      document.body.style.webkitUserSelect = 'none';
       // 使用正确的CSS属性
-      (document.body.style as any).msUserSelect = 'text';
-      (document.body.style as any).MozUserSelect = 'text';
+      (document.body.style as any).msUserSelect = 'none';
+      (document.body.style as any).MozUserSelect = 'none';
+      
+      // 禁用长按选择和菜单
+      (document.body.style as any).webkitTouchCallout = 'none';
     }
     
     // 使用mouseup事件处理文本选择
@@ -323,8 +381,8 @@ export default function TextSelector({ bookId, chapterId }: TextSelectorProps) {
     
     // 为移动设备添加触摸事件
     if (isMobile) {
-      document.addEventListener('touchstart', handleTouchStart, { passive: true });
-      document.addEventListener('touchmove', handleTouchMove, { passive: true });
+      document.addEventListener('touchstart', handleTouchStart, { passive: false });
+      document.addEventListener('touchmove', handleTouchMove, { passive: false });
       document.addEventListener('touchend', handleTouchEnd);
       
       return () => {
@@ -339,6 +397,7 @@ export default function TextSelector({ bookId, chapterId }: TextSelectorProps) {
         document.body.style.webkitUserSelect = '';
         (document.body.style as any).msUserSelect = '';
         (document.body.style as any).MozUserSelect = '';
+        (document.body.style as any).webkitTouchCallout = '';
       };
     }
     
@@ -421,21 +480,40 @@ export default function TextSelector({ bookId, chapterId }: TextSelectorProps) {
   const handleTranslate = async () => {
     if (!selectedText) return;
     setIsTranslating(true);
+    setTranslationError(false);
+    
     try {
       const translation = await translateText(selectedText);
-      setTranslationData({ 
-        errorCode: "0", 
-        translation: [translation],
+      
+      // 详细的翻译数据处理
+      const translationData: TranslationResult = {
+        errorCode: "0",
         query: selectedText,
-        l: "en2zh"
-      });
+        translation: typeof translation === 'string' 
+          ? [translation] 
+          : (Array.isArray(translation) 
+            ? translation 
+            : []),
+        l: "en2zh",
+        speakUrl: '', // 如果有原文音频URL
+        tSpeakUrl: '', // 如果有翻译音频URL
+        basic: translation && typeof translation === 'object' && 'explains' in translation 
+          ? {
+              phonetic: translation.phonetic || '',
+              explains: translation.explains || []
+            } 
+          : undefined
+      };
+      
+      setTranslationData(translationData);
+      setShowTranslation(true);
     } catch (error) {
       console.error('翻译出错:', error);
+      setTranslationError(true);
       setTranslationData(null);
     } finally {
       setIsTranslating(false);
     }
-    setShowTranslation(true);
   };
 
   // 处理单词点击
@@ -455,7 +533,20 @@ export default function TextSelector({ bookId, chapterId }: TextSelectorProps) {
       const data = await response.json();
       
       if (data.errorCode === "0") {
-        setTranslationData(data);
+        // 确保 translation 是字符串数组
+        const translationData = {
+          ...data,
+          translation: Array.isArray(data.translation) 
+            ? data.translation 
+            : (typeof data.translation === 'string' 
+              ? [data.translation] 
+              : []),
+          // 添加默认的音频URL和其他字段
+          speakUrl: data.speakUrl || '', 
+          tSpeakUrl: data.tSpeakUrl || '',
+          basic: data.basic // 保留基本释义
+        };
+        setTranslationData(translationData);
       } else {
         throw new Error(data.message || '翻译失败');
       }
@@ -568,7 +659,12 @@ export default function TextSelector({ bookId, chapterId }: TextSelectorProps) {
           {/* 遮罩层 */}
           <div 
             className="fixed inset-0 z-[9998] bg-black/30" 
-            onClick={closeAll}
+            onClick={(e) => {
+              // 只有点击遮罩层本身时才关闭
+              if (e.target === e.currentTarget) {
+                closeAll();
+              }
+            }}
             style={{
               position: 'fixed',
               top: 0,
@@ -628,9 +724,8 @@ export default function TextSelector({ bookId, chapterId }: TextSelectorProps) {
                     ) : (
                       <div className="flex items-center justify-between">
                         <div className="text-sm dark:text-gray-300 break-words max-w-[calc(100%-60px)]">
-                          {translationData.translation && translationData.translation.length > 0 && (
-                            <span>{translationData.translation[0]}</span>
-                          )}
+                          {translationData.translation && translationData.translation.length > 0 && 
+                            translationData.translation[0].toString()}
                         </div>
                         {translationData.tSpeakUrl && (
                           <button 
@@ -662,7 +757,7 @@ export default function TextSelector({ bookId, chapterId }: TextSelectorProps) {
             onClick={(e) => {
               // 只有点击遮罩层本身时才关闭
               if (e.target === e.currentTarget) {
-                setShowWordTranslation(false);
+                closeAll();
               }
             }}
             style={{

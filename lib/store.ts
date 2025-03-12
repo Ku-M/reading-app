@@ -47,7 +47,7 @@ export const useReaderStore = create<ReaderStore>()(
       // 默认 AI 设置
       aiSettings: {
         enabled: false,
-        lexileScore: 1000,
+        lexileScore: 600,
         priorityWords: [],
         credits: 100,
       },

@@ -700,14 +700,14 @@ video {
 .z-\[60\] {
   z-index: 60;
 }
+.z-\[90\] {
+  z-index: 90;
+}
 .z-\[9998\] {
   z-index: 9998;
 }
 .z-\[9999\] {
   z-index: 9999;
-}
-.z-\[90\] {
-  z-index: 90;
 }
 .mx-1 {
   margin-left: 0.25rem;
@@ -899,9 +899,6 @@ video {
 }
 .max-w-3xl {
   max-width: 48rem;
-}
-.max-w-\[85\%\] {
-  max-width: 85%;
 }
 .max-w-\[calc\(100\%-60px\)\] {
   max-width: calc(100% - 60px);
@@ -1189,10 +1186,6 @@ video {
 .border-t-white {
   --tw-border-opacity: 1;
   border-top-color: rgb(255 255 255 / var(--tw-border-opacity));
-}
-.bg-\[\#1b1b1b\] {
-  --tw-bg-opacity: 1;
-  background-color: rgb(27 27 27 / var(--tw-bg-opacity));
 }
 .bg-black {
   --tw-bg-opacity: 1;
@@ -1876,6 +1869,9 @@ video {
 body {
   color: rgb(var(--foreground-rgb));
   background: rgb(var(--background-rgb));
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  user-select: none;
 }
 
 /* 阅读器样式 */
@@ -2706,6 +2702,12 @@ body {
   --tw-prose-td-borders: var(--tw-prose-invert-td-borders);
 }
 
+.reader-content {
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  user-select: text;
+}
+
 /* 桌面版阅读样式 */
 @media (min-width: 768px) {
   .reader-content {
@@ -3080,7 +3082,7 @@ body {
 
 /* 滚动条样式 */
 ::-webkit-scrollbar {
-  width: 0.5rem;
+  display: none;
 }
 
 ::-webkit-scrollbar-track {

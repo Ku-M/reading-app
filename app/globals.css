@@ -15,6 +15,10 @@
 body {
   color: rgb(var(--foreground-rgb));
   background: rgb(var(--background-rgb));
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
 }
 
 /* 阅读器样式 */
@@ -24,6 +28,10 @@ body {
 
 .reader-content {
   @apply prose prose-lg dark:prose-invert prose-gray max-w-none;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  user-select: text;
 }
 
 /* 桌面版阅读样式 */
@@ -119,7 +127,7 @@ body {
 
 /* 滚动条样式 */
 ::-webkit-scrollbar {
-  @apply w-2;
+  display: none;
 }
 
 ::-webkit-scrollbar-track {
